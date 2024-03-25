@@ -8,7 +8,7 @@ I've been building a git implementation in Ruby called **[Jit]((https://github.c
 
 <!-- Part of the fun (and challenge) of the book is that you use your own implementation to version control itself. The early stages of your implementation cannot handle nested subdirectories, so all your files must be kept in a flat directory. This limitation is frustrating, but makes the victory of successful adding subdirectory support all the more significant!. Similarly, early versions of -->
 
-Recently, I had finished building a feature and was ready to commit. I staged the modified files via `jit add` and ran `jit status` when I encountered this output:
+I finished building a feature and was ready to commit. I staged the modified files via `jit add` and ran `jit status` when I encountered this output:
 
 {% highlight txt %}
 % jit status
@@ -19,7 +19,7 @@ Uh oh, had I corrupted my index file somehow?
 
 ## Inspecting the Index on disk
 
-The error statement says `Checksum does not match value stored on disk`. The checksum refers to the final 20 bytes stored in `.git/index` which is a `sha1sum` of the everything in the index that precedes those final 20 bytes.
+The checksum refers to the final 20 bytes stored in `.git/index` which is a `sha1sum` of the everything in the index that precedes those final 20 bytes.
 
 Okay, let's compute the checksum via the command line and inspected the last 20 bytes of my `.git/index` file
 
@@ -87,7 +87,6 @@ def load
     reader = Checksum.new(file)
     count = read_header(reader)
     read_entries(reader, count)
-    binding.pry
     reader.verify_checksum
   end
 ensure
@@ -95,7 +94,7 @@ ensure
 end
 {% endhighlight %}
 
-The very beginning of `.git/index` contains a header that specifies how many entries are stored in the index. That's the return value `read_header` which we store in `count`.
+The first 12 bytes of `.git/index` constitute a header that specifies (amongst other things) how many entries are stored in the index. That's the return value of `read_header` which we store in `count`.
 
 Looking at the `read_entries` method shows this:
 
@@ -115,7 +114,7 @@ def read_entries(reader, count)
 end
 {% endhighlight %}
 
-Each index entry is null terminated, so `read_entries` reads from the index until it finds a null byte. It then stores that entry in-memory, repeating that process `count` times.
+Each index entry is null terminated, so `read_entries` reads from the index until it finds a null byte. It then stores that entry in memory, repeating that process `count` times.
 
 What's that reader object doing?
 
@@ -139,7 +138,7 @@ end
 def verify_checksum
   sum = @file.read(CHECKSUM_SIZE)
 
-  unless sum == @digest.digest # rubocop:disable Style/GuardClause
+  unless sum == @digest.digest
     raise Invalid, 'Checksum does not match value stored on disk'
   end
 end
@@ -149,7 +148,7 @@ The `reader` object reads a specified number of bytes from a file, updates the `
 
 ## A Hypothesis
 
-After looking at my code, it seems that we're blindly trusting the value of `count` that's returned from reading the index header. If that `count` value is wrong then the 20 bytes that are by `verify_checksum` won't be the final 20 checksum bytes and we'll get an error. It's possible that we're reading `count` incorrectly, or the value in the header is incorrect, and both are pretty easy to check.
+After looking at my code, it seems that we're blindly trusting the value of `count` that's returned from reading the index header. If that `count` value is wrong then `verify_checksum` will return the wrong 20 bytes and everything will break. It's possible that we're reading `count` incorrectly, or the value in the header is incorrect, and both are pretty easy to check.
 
 ## Hexdump the Header
 
@@ -176,7 +175,7 @@ From: jit/lib/index.rb:87 Index#load:
 => 38
 {% endhighlight %}
 
-According to the documentation, the index header contains a 4-byte signature, 4-byte version number, and 32-bit number of index entries.
+According to the documentation, the index header contains a 4-byte signature "DIRC", followed by a 4-byte version number, and 32-bit number of index entries.
 
 {% highlight hexdump %}
 % cat .git/index | head -c 12 | hexdump -C
@@ -193,7 +192,9 @@ Each index entry contains the pathname of the entry in uncompressed ascii format
 
 I hexdumped the whole index and started counting the entries. After the 38th entry I found something weird:
 
-Here's the last 400 bytes of my `.git/index` file
+Here's the last 400 bytes of my `.git/index` file:
+
+`index_test.rb` is the 38th entry, so I should expect to find the checksum immediately after it.
 {% highlight hexdump %}
 % cat .git/index | tail -c 400 | hexdump -C
 
@@ -309,10 +310,12 @@ Running `jit add .` will generate a new index file that is tracking the entire w
 
 ## Post Mortem
 
-I learned that while `git` works in 'jit' repositories, the reverse is not true. Git is a complicated tool, and the pared down version that I've implemented doesn't cover all the edge cases that exist in the main tool.
+I learned that while `git` works in `jit` repositories, the reverse is not true. Git is a complicated tool, and the pared down version that I've implemented doesn't cover all the edge cases that exist in the main tool.
 
 It's rather unclear to me when a Cache-Tree gets generated. Clearly one is made when making a commit, but not when calling `git status`. I did a quick google search and haven't been able to find any posts on the subject. It seems like it exists to speed up the status command for large repositories. I tried searching the *Building Git* book for any references, but it doesn't seem to mention cache trees at all. Julia Evans, who has been digging deep into git lately, doesn't have any blog posts about cache trees either.
 
 I also learned about `.git/logs`, which provided me concrete evidence of what had gone wrong. Logging is super useful, and I'm glad the main `git` tool keeps internal records for moments like these.
+
+I'm tempted to try to add support for Cache Trees in my own implementation, or at least learn to skip past it to find the real checksum if one is present. But trying to match all of Git's functionality 1 to 1 feels like it could lead to an endless series of yak shaves.
 
 All in all I'm left with greater respect for the amount of engineering that goes into a system like Git. There are so many edge cases, and small details that have been built up over the year, and trying to build my own version has given me perspective on just how much work has gone into this ubiquitous tool (though I'll try to remember to avoid `git` commands in my Jit repo)
