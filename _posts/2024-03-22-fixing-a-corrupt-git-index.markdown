@@ -250,43 +250,42 @@ Also, looking closer at the hexdump we see that mixed amongst the binary are the
 
 I had pulled up the index format documentation for git while debugging. There are a lot of references to trees in that page, but **[one in particular stands out](https://git-scm.com/docs/index-format#_cache_tree)**:
 
-```manpage
-Cache tree
 
-Since the index does not record entries for directories, the cache
-entries cannot describe tree objects that already exist in the object
-database for regions of the index that are unchanged from an existing
-commit. The cache tree extension stores a recursive tree structure that
-describes the trees that already exist and completely match sections of
-the cache entries. This speeds up tree object generation from the index
-for a new commit by only computing the trees that are "new" to that
-commit. It also assists when comparing the index to another tree, such
-as `HEAD^{tree}`, since sections of the index can be skipped when a tree
-comparison demonstrates equality.
-
-The recursive tree structure uses nodes that store a number of cache
-entries, a list of subnodes, and an object ID (OID). The OID references
-the existing tree for that node, if it is known to exist. The subnodes
-correspond to subdirectories that themselves have cache tree nodes. The
-number of cache entries corresponds to the number of cache entries in
-the index that describe paths within that tree's directory.
-
-The extension tracks the full directory structure in the cache tree
-extension, but this is generally smaller than the full cache entry list.
-When a path is updated in index, Git invalidates all nodes of the
-recursive cache tree corresponding to the parent directories of that
-path. We store these tree nodes as being "invalid" by using "-1" as the
-number of cache entries. Invalid nodes still store a span of index
-entries, allowing Git to focus its efforts when reconstructing a full
-cache tree.
-
-The signature for this extension is { 'T', 'R', 'E', 'E' }.
-
-A series of entries fill the entire extension; each of which
-consists of:
-
-...
-```
+> Cache tree
+>
+> Since the index does not record entries for directories, the cache
+> entries cannot describe tree objects that already exist in the object
+> database for regions of the index that are unchanged from an existing
+> commit. The cache tree extension stores a recursive tree structure that
+> describes the trees that already exist and completely match sections of
+> the cache entries. This speeds up tree object generation from the index
+> for a new commit by only computing the trees that are "new" to that
+> commit. It also assists when comparing the index to another tree, such
+> as `HEAD^{tree}`, since sections of the index can be skipped when a tree
+> comparison demonstrates equality.
+>
+> The recursive tree structure uses nodes that store a number of cache
+> entries, a list of subnodes, and an object ID (OID). The OID references
+> the existing tree for that node, if it is known to exist. The subnodes
+> correspond to subdirectories that themselves have cache tree nodes. The
+> number of cache entries corresponds to the number of cache entries in
+> the index that describe paths within that tree's directory.
+>
+> The extension tracks the full directory structure in the cache tree
+> extension, but this is generally smaller than the full cache entry list.
+> When a path is updated in index, Git invalidates all nodes of the
+> recursive cache tree corresponding to the parent directories of that
+> path. We store these tree nodes as being "invalid" by using "-1" as the
+> number of cache entries. Invalid nodes still store a span of index
+> entries, allowing Git to focus its efforts when reconstructing a full
+> cache tree.
+>
+> The signature for this extension is { 'T', 'R', 'E', 'E' }.
+>
+> A series of entries fill the entire extension; each of which
+> consists of:
+>
+> ...
 
 That must be it! In fact, if I run `git status` it seems `git` has no issue reading my index file. That would make sense seeing as this is an "index extension" and therefore unsupported by my own implementation.
 
@@ -300,7 +299,7 @@ Digging around my `.git` folder I found the following in `.git/logs/HEAD`
 
 That's my most recent commit! But my code doesn't have any logic pertaining to `.git/logs/HEAD`.
 
-I must have been on autopilot and used `git commit` instead of my own `jit commit` command. Git must have mutated my index and added on the "Cache Tree" extension when making the commit. My own implementation has no concept of a "Cache Tree" so that addition caused everything to break.
+I must have been on autopilot and used `git commit` instead of my own `jit commit` command. Git then mutated my index and added on the "Cache Tree" extension when making the commit. My own implementation has no concept of a "Cache Tree" so that addition caused everything to break.
 
 ## Fixing the problem
 
