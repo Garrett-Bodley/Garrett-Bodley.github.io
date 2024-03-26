@@ -2,7 +2,7 @@
 layout: post
 title:  "Fixing a Corrupt Git Index"
 date:   2024-3-22 13:20:00 -0400
-categories: jekyll update
+categories: Git Ruby
 ---
 I've been building a git implementation in Ruby called **[Jit]((https://github.com/Garrett-Bodley/Jit))** as part of a **[Recurse Center](https://www.recurse.com/)** study group that's reading **[Building Git](https://shop.jcoglan.com/building-git/)** by James Coglin.
 
